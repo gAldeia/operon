@@ -75,5 +75,7 @@ cmake --build build/dev
 cd build/dev && ctest
 ```
 
+To additionally show the test outputs, you can use the flag `-VV` when calling `ctest`.
+
 [1]: https://cmake.org/cmake/help/latest/manual/cmake-presets.7.html
 [2]: https://cmake.org/download/
