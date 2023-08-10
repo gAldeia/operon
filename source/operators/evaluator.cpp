@@ -175,7 +175,7 @@ namespace Operon {
     auto FitLeastSquares(Operon::Span<double const> estimated, Operon::Span<double const> target) noexcept -> std::pair<double, double> {
         return FitLeastSquaresImpl<double>(estimated, target);
     }
-
+    
     auto
     Evaluator::operator()(Operon::RandomGenerator& /*random*/, Individual& ind, Operon::Span<Operon::Scalar> buf) const -> typename EvaluatorBase::ReturnType
     {
@@ -223,6 +223,38 @@ namespace Operon {
         }
 
         auto fit = static_cast<Operon::Scalar>(computeFitness());
+        if (!std::isfinite(fit)) {
+            fit = EvaluatorBase::ErrMax;
+        }
+        return typename EvaluatorBase::ReturnType{ fit };
+    }
+
+    auto
+    Evaluator::SingleLexiCase(Operon::RandomGenerator& random, Individual& ind, size_t caseIdx) const -> typename EvaluatorBase::ReturnType
+    {
+        // ++CallCount; // TODO: how this should be updated here?? ideally, this was already calculated
+        auto const& problem = GetProblem();
+        auto const& dataset = problem.GetDataset();
+        auto const& interpreter = GetInterpreter();
+
+        auto trainingRange = Operon::Range(caseIdx, caseIdx+1);
+        auto targetValues = dataset.GetValues(problem.TargetVariable()).subspan(trainingRange.Start(), trainingRange.Size());
+
+        // ++ResidualEvaluations; // TODO: how this should be updated here?? 
+        Operon::Vector<Operon::Scalar> estimatedValues;
+        estimatedValues.resize(1);
+        Operon::Span<Operon::Scalar> buf = { estimatedValues.data(), 1 };
+        
+        interpreter(ind.Genotype, dataset, trainingRange, buf);
+
+        if (scaling_) {
+            auto [a, b] = FitLeastSquaresImpl<Operon::Scalar>(buf, targetValues);
+            std::transform(buf.begin(), buf.end(), buf.begin(), [a=a,b=b](auto x) { return a * x + b; });
+        }
+
+        ENSURE(buf.size() >= targetValues.size());
+
+        auto fit = static_cast<Operon::Scalar>(error_(buf, targetValues));
         if (!std::isfinite(fit)) {
             fit = EvaluatorBase::ErrMax;
         }

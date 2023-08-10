@@ -110,6 +110,14 @@ struct EvaluatorBase : public OperatorBase<Operon::Vector<Operon::Scalar>, Indiv
 
     virtual auto ObjectiveCount() const -> std::size_t { return 1UL; }
 
+    virtual auto
+    SingleLexiCase(Operon::RandomGenerator& random, Individual& ind, size_t caseIdx) const -> ReturnType
+    {
+        // Takes one individual and the index of testCase and return the error for 
+        // given case. Default behavior for singleLexicase is to return fitness over entire dataset.
+        return ind.Fitness;
+    }
+
     auto TotalEvaluations() const -> size_t { return ResidualEvaluations + JacobianEvaluations; }
 
     void SetLocalOptimizationIterations(size_t value) { iterations_ = value; }
@@ -181,6 +189,9 @@ public:
 
     auto
     operator()(Operon::RandomGenerator& /*random*/, Individual& ind, Operon::Span<Operon::Scalar> buf) const -> typename EvaluatorBase::ReturnType override;
+
+    auto
+    SingleLexiCase(Operon::RandomGenerator& random, Individual& ind, size_t caseIdx) const -> typename EvaluatorBase::ReturnType override;
 
 private:
     std::reference_wrapper<Interpreter const> interpreter_;
@@ -318,7 +329,6 @@ public:
 
     auto
     operator()(Operon::RandomGenerator& /*random*/, Individual& ind, Operon::Span<Operon::Scalar> buf) const -> typename EvaluatorBase::ReturnType override;
-
 private:
     Operon::MSE mse_;
 };
