@@ -2,55 +2,94 @@
 // SPDX-FileCopyrightText: Copyright 2019-2023 Heal Research
 //
 #include <algorithm>
-#include <catch2/catch.hpp>
+#include <doctest/doctest.h>
 
 #include "operon/core/dataset.hpp"
 #include "operon/formatter/formatter.hpp"
-#include "operon/core/grammar.hpp"
-#include "operon/core/stats.hpp"
+#include "operon/core/pset.hpp"
 #include "operon/operators/creator.hpp"
-#include "operon/operators/selection.hpp"
+#include "operon/operators/selector.hpp"
+#include "operon/operators/initializer.hpp"
 
 namespace Operon::Test {
+
 TEST_CASE("Selection Distribution")
 {
-    size_t nTrees = 1'000;
+    size_t nTrees = 100;
     size_t maxLength = 100;
     size_t maxDepth = 12;
 
-    auto random = Operon::Random(1234);
-    auto ds = Dataset("../data/Poly-10.csv", true);
+    Operon::RandomGenerator random(1234);
 
-    auto target = "Y";
-    auto variables = ds.GetVariables();
-    std::vector<Variable> inputs;
-    std::copy_if(variables.begin(), variables.end(), std::back_inserter(inputs), [&](const auto& v) { return v.Name != target; });
+    auto sizeDistribution = std::uniform_int_distribution<size_t>(1, maxLength);
 
-    std::uniform_int_distribution<size_t> sizeDistribution(1, maxLength);
+    auto dataset = Dataset("../../../data/Poly-10.csv", /*hasHeader=*/true);
+    auto inputs = dataset.VariableHashes();
 
-    std::vector<Individual<1>> individuals(nTrees);
     PrimitiveSet grammar;
+    grammar.SetConfig(PrimitiveSet::Arithmetic);
+    grammar.SetMaximumArity(Node(NodeType::Add), 2);
+    grammar.SetMaximumArity(Node(NodeType::Mul), 2);
+    grammar.SetMaximumArity(Node(NodeType::Sub), 2);
+    grammar.SetMaximumArity(Node(NodeType::Div), 2);
+
+    grammar.SetFrequency(Node(NodeType::Add), 4);
+    grammar.SetFrequency(Node(NodeType::Mul), 1);
+    grammar.SetFrequency(Node(NodeType::Sub), 1);
+    grammar.SetFrequency(Node(NodeType::Div), 1);
+
+    auto fullRange = Operon::Range{ 0, 2 * dataset.Rows<std::size_t>() / 3 };
+
+    Operon::Problem problem(dataset, fullRange, fullRange);
+    problem.ConfigurePrimitiveSet(Operon::PrimitiveSet::Arithmetic);
+
+    auto const& [error, scale] = std::make_tuple(Operon::MAE(), false);
+    Operon::Interpreter interpreter;
+    Operon::Evaluator evaluator(problem, interpreter, error, scale);
+
     auto creator = BalancedTreeCreator { grammar, inputs };
-    for (size_t i = 0; i < nTrees; ++i) {
-        individuals[i].Genotype = creator(random, sizeDistribution(random), maxDepth);
-        individuals[i][0] = std::uniform_real_distribution(0.0, 1.0)(random);
-    }
 
-    using Ind = Individual<1>;
-    constexpr gsl::index Idx = 0;
+    std::vector<size_t> lengths(nTrees);
+    std::generate(lengths.begin(), lengths.end(), [&]() { return sizeDistribution(random); });
+    
+    using Dist = std::normal_distribution<Operon::Scalar>;
+    auto coeffInitializer = Operon::CoefficientInitializer<Dist>();
+    dynamic_cast<Operon::NormalCoefficientInitializer*>(&coeffInitializer)->ParameterizeDistribution(Operon::Scalar{0}, Operon::Scalar{1});
 
-    ProportionalSelector<Ind, Idx> proportionalSelector;
-    proportionalSelector.Prepare(individuals);
+    Operon::Scalar* data = nullptr;
+    Operon::Span<Operon::Scalar> buf;
+    
+    Operon::Vector<Individual> individuals; //(nTrees);
+    std::transform(lengths.begin(), lengths.end(), std::back_inserter(individuals), [&](size_t len) {
+        Individual ind;
+        ind.Genotype = creator(random, len, 0, maxDepth);
+        coeffInitializer(random, ind.Genotype);
 
-    TournamentSelector<Ind, Idx> tournamentSelector(2);
-    tournamentSelector.Prepare(individuals);
+        ind.Fitness = evaluator(random, ind, buf);
 
-    RankTournamentSelector<Ind, Idx> rankedSelector(2);
-    rankedSelector.Prepare(individuals);
+        return ind;
+    });
 
-    auto plotHist = [&](SelectorBase<Ind, Idx>& selector)
+    Operon::Span<Individual> pop(individuals);
+
+    // using Ind = Individual<1>;
+    auto comp = [](auto const& lhs, auto const& rhs) { return lhs[0] < rhs[0]; };
+
+    ProportionalSelector proportionalSelector(comp);
+    proportionalSelector.Prepare(pop);
+
+    TournamentSelector tournamentSelector(comp);
+    tournamentSelector.Prepare(pop);
+
+    RankTournamentSelector rankedSelector(comp);
+    rankedSelector.Prepare(pop);
+
+    LexicaseSelector lexicaseSelector(comp, evaluator);
+    lexicaseSelector.Prepare(pop);
+
+    auto plotHist = [&](SelectorBase& selector)
     {
-        std::vector<size_t> hist(individuals.size());
+        std::vector<size_t> hist(pop.size());
 
         for (size_t i = 0; i < 100 * nTrees; ++i)
         {
@@ -65,31 +104,36 @@ TEST_CASE("Selection Distribution")
         }
     };
 
-    SECTION("Proportional")
+    SUBCASE("Proportional")
     {
         plotHist(proportionalSelector);
     }
 
-    SECTION("Tournament Size 2")
+    SUBCASE("Tournament Size 2")
     {
         plotHist(tournamentSelector);
     }
 
-    SECTION("Rank Tournament Size 2")
+    SUBCASE("Rank Tournament Size 2")
     {
         plotHist(rankedSelector);
     }
     
-    SECTION("Tournament Size 3")
+    SUBCASE("Tournament Size 3")
     {
-        tournamentSelector.TournamentSize(3);
+        tournamentSelector.SetTournamentSize(3);
         plotHist(tournamentSelector);
     }
 
-    SECTION("Rank Tournament Size 3")
+    SUBCASE("Rank Tournament Size 3")
     {
-        rankedSelector.TournamentSize(3);
+        rankedSelector.SetTournamentSize(3);
         plotHist(rankedSelector);
+    }
+    
+    SUBCASE("epsilon-Lexicase")
+    {
+        plotHist(lexicaseSelector);
     }
 }
 }
