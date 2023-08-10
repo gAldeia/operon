@@ -76,6 +76,25 @@ struct LessEqual {
 
 template <bool CheckNan = false>
 struct ParetoDominance {
+    template<std::forward_iterator Input1, std::forward_iterator Input2, std::forward_iterator Input3>
+    inline auto operator()(Input1 first1, Input1 last1, Input2 first2, Input2 last2, Input3 first3, Input3 last3) const noexcept -> Dominance
+    {
+        bool better { false };
+        bool worse { false };
+        Operon::Less<CheckNan> cmp;
+        for (; (first1 != last1 && first2 != last2) && first3 != last3; ++first1, ++first2, ++first3) {
+            better |= cmp(*first1, *first2, *first3);
+            worse |= cmp(*first2, *first1, *first3);
+        }
+        if (better) {
+            return worse ? Dominance::None : Dominance::Left;
+        }
+        if (worse) {
+            return better ? Dominance::None : Dominance::Right;
+        }
+        return Dominance::Equal;
+    }
+
     template<std::forward_iterator Input1, std::forward_iterator Input2>
     inline auto operator()(Input1 first1, Input1 last1, Input2 first2, Input2 last2, typename std::iterator_traits<Input1>::value_type eps = 0.0) const noexcept -> Dominance
     {
