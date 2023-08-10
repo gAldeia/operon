@@ -224,8 +224,8 @@ auto main(int argc, char** argv) -> int
 
         auto comp = [](auto const& lhs, auto const& rhs) { return lhs[0] < rhs[0]; };
 
-        auto femaleSelector = Operon::ParseSelector(result["female-selector"].as<std::string>(), comp);
-        auto maleSelector = Operon::ParseSelector(result["male-selector"].as<std::string>(), comp);
+        auto femaleSelector = Operon::ParseSelector(result["female-selector"].as<std::string>(), comp, evaluator);
+        auto maleSelector = Operon::ParseSelector(result["male-selector"].as<std::string>(), comp, evaluator);
 
         auto generator = Operon::ParseGenerator(result["offspring-generator"].as<std::string>(), evaluator, crossover, mutator, *femaleSelector, *maleSelector);
         auto reinserter = Operon::ParseReinserter(result["reinserter"].as<std::string>(), comp);

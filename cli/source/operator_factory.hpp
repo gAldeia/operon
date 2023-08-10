@@ -11,6 +11,7 @@
 #include <vector>                              // for vector
 #include "operon/core/types.hpp"               // for Span
 #include "operon/core/individual.hpp"          // for Comparison
+#include "operon/core/dataset.hpp"             // for Selector
 #include "operon/interpreter/interpreter.hpp"  // for Interpreter
 #include "util.hpp"                            // for Split
 namespace Operon { class EvaluatorBase; }
@@ -31,7 +32,7 @@ namespace Operon {
 
 auto ParseReinserter(std::string const& str, ComparisonCallback&& comp) -> std::unique_ptr<ReinserterBase>;
 
-auto ParseSelector(std::string const& str, ComparisonCallback&& comp) -> std::unique_ptr<SelectorBase>;
+auto ParseSelector(std::string const& str, ComparisonCallback&& comp, EvaluatorBase& eval) -> std::unique_ptr<SelectorBase>;
 
 auto ParseCreator(std::string const& str, PrimitiveSet const& pset, Operon::Span<Operon::Hash const> inputs) -> std::unique_ptr<CreatorBase>;
 

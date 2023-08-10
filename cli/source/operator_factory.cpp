@@ -30,7 +30,7 @@ auto ParseReinserter(std::string const& str, ComparisonCallback&& comp) -> std::
     return reinserter;
 }
 
-auto ParseSelector(std::string const& str, ComparisonCallback&& comp) -> std::unique_ptr<Operon::SelectorBase>
+auto ParseSelector(std::string const& str, ComparisonCallback&& comp, EvaluatorBase& eval) -> std::unique_ptr<Operon::SelectorBase>
 {
     auto tok = Split(str, ':');
     auto name = tok[0];
@@ -49,6 +49,8 @@ auto ParseSelector(std::string const& str, ComparisonCallback&& comp) -> std::un
         size_t tournamentSize{defaultTournamentSize};
         if (tok.size() > 1) { (void) scn::scan(tok[1], "{}", tournamentSize); }
         dynamic_cast<Operon::RankTournamentSelector*>(selector.get())->SetTournamentSize(tournamentSize);
+    } else if (name == "lexicase") {
+        selector = std::make_unique<Operon::LexicaseSelector>(std::move(comp), eval);
     } else if (name == "random") {
         selector = std::make_unique<Operon::RandomSelector>();
     }
