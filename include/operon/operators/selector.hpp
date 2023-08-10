@@ -6,6 +6,7 @@
 
 #include "operon/core/individual.hpp"
 #include "operon/core/operator.hpp"
+#include "operon/operators/evaluator.hpp"
 
 namespace Operon {
 // the selector a vector of individuals and returns the index of a selected individual per each call of operator()
@@ -105,6 +106,44 @@ private:
     // discrete CDF of the population fitness values
     mutable std::vector<std::pair<Operon::Scalar, size_t>> fitness_;
     size_t idx_ = 0;
+};
+
+class OPERON_EXPORT LexicaseSelector : public SelectorBase {
+public:
+    explicit LexicaseSelector(ComparisonCallback&& cb, EvaluatorBase& eval)
+        : SelectorBase(cb) 
+        , evaluator_(eval)
+        , range_(eval.GetProblem().TrainingRange())
+    {        
+    }
+    explicit LexicaseSelector(ComparisonCallback const& cb, EvaluatorBase& eval)
+        : SelectorBase(cb)
+        , evaluator_(eval)
+        , range_(eval.GetProblem().TrainingRange())
+    {        
+    } 
+
+    void Prepare(Operon::Span<Individual const> pop) const override;
+
+    auto operator()(Operon::RandomGenerator& random) const -> size_t override;
+
+    void SetEvaluator(EvaluatorBase& eval) { evaluator_ = eval; }
+    auto GetEvaluator() const -> Operon::EvaluatorBase& { return evaluator_.get(); }
+
+private:
+    // auxiliary functions
+    Operon::Scalar Median(const Operon::Span<Operon::Scalar>& v) const;
+    std::vector<Operon::Scalar> MadFitnesses(Operon::Span<Individual const> pop) const;
+    bool IsNonDominated(Individual const& lhs, Individual const& rhs, std::vector<Operon::Scalar> eps) const;
+
+    // training data range
+    Operon::Range range_;
+
+    mutable std::reference_wrapper<Operon::EvaluatorBase> evaluator_;
+
+    // index vectors
+    mutable std::vector<size_t> pool_;
+    mutable std::vector<size_t> testCases_;
 };
 
 class OPERON_EXPORT RandomSelector : public SelectorBase {
