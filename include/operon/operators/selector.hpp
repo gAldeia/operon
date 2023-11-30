@@ -131,10 +131,13 @@ public:
     auto GetEvaluator() const -> Operon::EvaluatorBase& { return evaluator_.get(); }
 
 private:
-    // auxiliary functions
+    // functions to calculate epsilon
     Operon::Scalar Median(const Operon::Span<Operon::Scalar>& v) const;
     std::vector<Operon::Scalar> MadFitnesses(Operon::Span<Individual const> pop) const;
+
+    // functions to find the pareto front based on epsilon-domination
     bool IsNonDominated(Individual const& lhs, Individual const& rhs, std::vector<Operon::Scalar> eps) const;
+    std::vector<std::vector<size_t>> EpsilonDominatedSorter(Operon::Span<Operon::Individual const> pop, std::vector<Operon::Scalar> eps) const;
 
     // training data range
     Operon::Range range_;
